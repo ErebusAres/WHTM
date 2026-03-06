@@ -847,14 +847,9 @@ function WHTM:ApplyPlayerNameGlow(fontString, shouldGlow)
     if not fontString then
         return
     end
-    if shouldGlow and self.db.profile.playerNameGlow then
-        local r, g, b = getPlayerClassRGB()
-        fontString:SetShadowColor(r, g, b, 0.75)
-        fontString:SetShadowOffset(1, -1)
-    else
-        fontString:SetShadowColor(0, 0, 0, 0.6)
-        fontString:SetShadowOffset(1, -1)
-    end
+    -- Wrath-era font rendering can look doubled with extra shadow/glow.
+    fontString:SetShadowColor(0, 0, 0, 0)
+    fontString:SetShadowOffset(0, 0)
 end
 
 function WHTM:SetDetailsPanelHeight(height)
@@ -1415,7 +1410,11 @@ function WHTM:RefreshRows()
     FauxScrollFrame_Update(self.mainFrame.scrollFrame, total, visibleRows, ROW_HEIGHT)
     local offset = FauxScrollFrame_GetOffset(self.mainFrame.scrollFrame)
 
-    self.mainFrame.header:SetShown(self.db.profile.mode == "table")
+    if self.db.profile.mode == "table" then
+        self.mainFrame.header:Show()
+    else
+        self.mainFrame.header:Hide()
+    end
     for i = 1, DEFAULT_VISIBLE_ROWS do
         local row = self.mainFrame.rows[i]
         local event = events[i + offset]
@@ -1426,7 +1425,11 @@ function WHTM:RefreshRows()
             else
                 self:RenderRowTable(row, event)
             end
-            row.selected:SetShown(self.selectedEvent and self.selectedEvent.id == event.id)
+            if self.selectedEvent and self.selectedEvent.id == event.id then
+                row.selected:Show()
+            else
+                row.selected:Hide()
+            end
             row:Show()
         else
             row:Hide()
