@@ -1,0 +1,29 @@
+## Interface: 30300
+## Title: WHTM
+## Notes: What Happened To Me - player-focused combat timeline for Wrath 3.3.5a
+## Author: Erebu + Codex
+## Version: 1.0.0
+## SavedVariables: WHTMDB
+
+Libs\Ace3\LibStub\LibStub.lua
+Libs\Ace3\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\Ace3\AceAddon-3.0\AceAddon-3.0.lua
+Libs\Ace3\AceEvent-3.0\AceEvent-3.0.lua
+Libs\Ace3\AceConsole-3.0\AceConsole-3.0.lua
+Libs\Ace3\AceDB-3.0\AceDB-3.0.lua
+Libs\Ace3\AceGUI-3.0\AceGUI-3.0.xml
+Libs\Ace3\AceConfig-3.0\AceConfig-3.0.xml
+Libs\Ace3\AceDBOptions-3.0\AceDBOptions-3.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+
+Core\Addon.lua
+Core\Defaults.lua
+Core\Store.lua
+Core\API.lua
+Core\Events.lua
+Core\Sharing.lua
+Core\Minimap.lua
+UI\MainFrame.lua
+Core\Options.lua
+Locales\enUS.lua
