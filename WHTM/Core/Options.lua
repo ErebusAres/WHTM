@@ -51,12 +51,21 @@ local function set(info, value)
         WHTM:RefreshRows()
     elseif key == "playerNameGlow" then
         WHTM:RefreshRows()
+    elseif key == "apiPassiveUI" then
+        if not value then
+            WHTM:RefreshRows()
+        end
     elseif key == "showProfiler" then
         WHTM:RefreshProfilerLine()
     elseif key == "paused" then
         WHTM:SetCapturePaused(value)
     elseif key == "maxRows" then
         WHTM:TrimEventsToCap()
+        WHTM:RefreshRows()
+    elseif key == "retainFullHistory" then
+        if not value then
+            WHTM:TrimEventsToCap()
+        end
         WHTM:RefreshRows()
     elseif key == "timestampFormat" then
         WHTM:RefreshRows()
@@ -86,7 +95,7 @@ function WHTM:InitializeOptions()
                         name = "Capture Scope",
                         order = 2,
                         values = {
-                            player = "Player only",
+                            player = "Self only",
                             party = "Party group",
                             raid = "Raid group",
                         },
@@ -106,19 +115,30 @@ function WHTM:InitializeOptions()
                         name = "Player name glow",
                         order = 5,
                     },
+                    apiPassiveUI = {
+                        type = "toggle",
+                        name = "Passive UI during API control",
+                        desc = "When enabled, API-driven setting updates do not redraw WHTM while it is hidden.",
+                        order = 6,
+                    },
                     maxRows = {
                         type = "range",
                         name = "Max in-memory rows",
                         min = 100,
                         max = 3000,
                         step = 50,
-                        order = 6,
+                        order = 7,
+                    },
+                    retainFullHistory = {
+                        type = "toggle",
+                        name = "Retain full session history",
+                        order = 8,
                     },
                     timestampFormat = {
                         type = "select",
                         name = "Timestamp format",
                         values = { ["24h"] = "24h", ["12h"] = "12h" },
-                        order = 7,
+                        order = 9,
                     },
                     shareChannel = {
                         type = "select",
@@ -130,12 +150,12 @@ function WHTM:InitializeOptions()
                             GUILD = "Guild",
                             WHISPER = "Whisper",
                         },
-                        order = 8,
+                        order = 10,
                     },
                     whisperTarget = {
                         type = "input",
                         name = "Whisper target",
-                        order = 9,
+                        order = 11,
                     },
                 },
             },
@@ -147,16 +167,17 @@ function WHTM:InitializeOptions()
                     incoming = { type = "toggle", name = "Incoming", order = 1 },
                     outgoing = { type = "toggle", name = "Outgoing", order = 2 },
                     internal = { type = "toggle", name = "Internal", order = 3 },
-                    damage = { type = "toggle", name = "Damage", order = 4 },
-                    heal = { type = "toggle", name = "Heals", order = 5 },
-                    aura = { type = "toggle", name = "Auras/Buffs", order = 6 },
-                    aura_gained = { type = "toggle", name = "Aura gained", order = 7 },
-                    aura_lost = { type = "toggle", name = "Aura lost", order = 8 },
-                    aura_other = { type = "toggle", name = "Aura other", order = 9 },
-                    miss = { type = "toggle", name = "Misses", order = 10 },
-                    death = { type = "toggle", name = "Deaths/Res", order = 11 },
-                    control = { type = "toggle", name = "Control", order = 12 },
-                    resource = { type = "toggle", name = "Resource", order = 13 },
+                    boss_only = { type = "toggle", name = "Boss encounters only", order = 4 },
+                    damage = { type = "toggle", name = "Damage", order = 5 },
+                    heal = { type = "toggle", name = "Heals", order = 6 },
+                    aura = { type = "toggle", name = "Auras/Buffs", order = 7 },
+                    aura_gained = { type = "toggle", name = "Aura gained", order = 8 },
+                    aura_lost = { type = "toggle", name = "Aura lost", order = 9 },
+                    aura_other = { type = "toggle", name = "Aura other", order = 10 },
+                    miss = { type = "toggle", name = "Misses", order = 11 },
+                    death = { type = "toggle", name = "Deaths/Res", order = 12 },
+                    control = { type = "toggle", name = "Control", order = 13 },
+                    resource = { type = "toggle", name = "Resource", order = 14 },
                 },
             },
             minimap = {

@@ -18,8 +18,10 @@ function WHTM:InitializeDefaults()
             paused = false,
             showProfiler = true,
             playerNameGlow = true,
+            apiPassiveUI = true,
             captureScope = "player",
             maxRows = 600,
+            retainFullHistory = false,
             timestampFormat = "24h",
             shareChannel = "PARTY",
             whisperTarget = "",
@@ -27,6 +29,7 @@ function WHTM:InitializeDefaults()
                 incoming = true,
                 outgoing = false,
                 internal = false,
+                boss_only = false,
                 damage = true,
                 heal = true,
                 aura = true,
@@ -134,23 +137,45 @@ function WHTM:IsAuraStateEnabled(state)
     return filters[key]
 end
 
-function WHTM:SetCapturePaused(paused)
+function WHTM:IsBossEncounterEvent(event)
+    if not event then
+        return false
+    end
+    return event.sourceTier == "boss" or event.destTier == "boss"
+end
+
+function WHTM:SetCapturePaused(paused, suppressUI)
     self.db.profile.paused = paused and true or false
-    self:SendMessage("WHTM_CAPTURE_STATE_CHANGED", self.db.profile.paused)
+    if not suppressUI then
+        self:SendMessage("WHTM_CAPTURE_STATE_CHANGED", self.db.profile.paused)
+    end
     if self.NotifyAPIListeners then
         self:NotifyAPIListeners("capture_state_changed", self.db.profile.paused)
     end
 end
 
-function WHTM:SetDisplayMode(mode)
+function WHTM:SetDisplayMode(mode, suppressUI)
     if mode ~= "chat" and mode ~= "table" then
         return
     end
     self.db.profile.mode = mode
-    self:SendMessage("WHTM_MODE_CHANGED", mode)
+    if not suppressUI then
+        self:SendMessage("WHTM_MODE_CHANGED", mode)
+    end
     if self.NotifyAPIListeners then
         self:NotifyAPIListeners("mode_changed", mode)
     end
+end
+
+function WHTM:ShouldDeferUIRefreshFromAPI()
+    local passive = self.db and self.db.profile and self.db.profile.apiPassiveUI
+    if passive == nil then
+        passive = true
+    end
+    if not passive then
+        return false
+    end
+    return not (self.mainFrame and self.mainFrame:IsShown())
 end
 
 function WHTM:FormatClockTime(epoch)

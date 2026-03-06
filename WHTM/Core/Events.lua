@@ -301,7 +301,34 @@ function WHTM:RebuildTrackedGUIDs()
 
     addUnit("player")
 
-    if scope == "party" or scope == "raid" then
+    if scope == "party" then
+        addUnit("pet")
+        if UnitInRaid("player") then
+            local mySubgroup = nil
+            local myName = UnitName("player")
+            for i = 1, 40 do
+                local name, _, subgroup = GetRaidRosterInfo(i)
+                if name and myName and sanitizeName(name) == sanitizeName(myName) then
+                    mySubgroup = subgroup
+                    break
+                end
+            end
+            if mySubgroup then
+                for i = 1, 40 do
+                    local _, _, subgroup = GetRaidRosterInfo(i)
+                    if subgroup == mySubgroup then
+                        addUnit("raid" .. i)
+                        addUnit("raidpet" .. i)
+                    end
+                end
+            end
+        else
+            for i = 1, 4 do
+                addUnit("party" .. i)
+                addUnit("partypet" .. i)
+            end
+        end
+    elseif scope == "raid" then
         addUnit("pet")
         if UnitInRaid("player") then
             for i = 1, 40 do

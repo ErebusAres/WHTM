@@ -23,6 +23,7 @@ local groupLabel = {
     incoming = "Incoming",
     outgoing = "Outgoing",
     internal = "Internal",
+    boss_only = "Boss encounters only",
     damage = "Damage",
     heal = "Heal",
     aura = "Aura",
@@ -68,6 +69,29 @@ local uiTone = {
     time = { 0.72, 0.72, 0.72 },
     where = { 0.74, 0.86, 1.00 },
 }
+
+local goalsTone = {
+    frameBg = { 0.08, 0.09, 0.12, 0.95 },
+    frameBorder = { 0.20, 0.22, 0.26, 0.75 },
+    insetBg = { 0.10, 0.11, 0.15, 0.95 },
+    insetBorder = { 0.17, 0.19, 0.24, 0.85 },
+    title = { 0.90, 0.92, 0.98, 1.0 },
+    gold = { 0.92, 0.80, 0.50, 1.0 },
+    controlBg = { 0.06, 0.07, 0.10, 0.72 },
+    controlBorder = { 0.20, 0.22, 0.28, 0.68 },
+    rowHover = { 0.92, 0.80, 0.50, 0.12 },
+    rowSelect = { 0.92, 0.80, 0.50, 0.20 },
+}
+
+local function styleTextButton(btn)
+    if not btn then
+        return
+    end
+    local fs = btn:GetFontString()
+    if fs and fs.SetTextColor then
+        fs:SetTextColor(0.92, 0.92, 0.92, 1)
+    end
+end
 
 local controlSpellNames = {
     ["Fear"] = true,
@@ -340,7 +364,7 @@ end
 
 local function eventTint(group, rowIndex)
     local c = groupColor[group] or { 0.8, 0.8, 0.8 }
-    local a = (rowIndex % 2 == 0) and 0.17 or 0.12
+    local a = (rowIndex % 2 == 0) and 0.12 or 0.08
     return c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, a
 end
 
@@ -502,23 +526,26 @@ function WHTM:InitializeUI()
         edgeSize = 16,
         insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
-    frame:SetBackdropColor(0.05, 0.05, 0.05, 0.96)
+    frame:SetBackdropColor(goalsTone.frameBg[1], goalsTone.frameBg[2], goalsTone.frameBg[3], goalsTone.frameBg[4])
+    frame:SetBackdropBorderColor(goalsTone.frameBorder[1], goalsTone.frameBorder[2], goalsTone.frameBorder[3], goalsTone.frameBorder[4])
     frame:Hide()
     self.mainFrame = frame
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -12)
     title:SetText("What Happened To Me")
+    title:SetTextColor(goalsTone.title[1], goalsTone.title[2], goalsTone.title[3], goalsTone.title[4])
 
     local profiler = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     profiler:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -34, -14)
     profiler:SetJustifyH("RIGHT")
+    profiler:SetTextColor(0.82, 0.86, 0.92, 1)
     profiler:SetText("")
     frame.profilerText = profiler
 
     local accent = frame:CreateTexture(nil, "ARTWORK")
     accent:SetTexture("Interface\\Buttons\\WHITE8x8")
-    accent:SetVertexColor(1.0, 0.84, 0.0, 0.45)
+    accent:SetVertexColor(goalsTone.frameBorder[1], goalsTone.frameBorder[2], goalsTone.frameBorder[3], 0.85)
     accent:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -34)
     accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -34)
     accent:SetHeight(1)
@@ -534,6 +561,7 @@ function WHTM:InitializeUI()
         local nextMode = (WHTM.db.profile.mode == "chat") and "table" or "chat"
         WHTM:SetDisplayMode(nextMode)
     end)
+    styleTextButton(modeBtn)
     frame.modeButton = modeBtn
 
     local filterBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -544,6 +572,7 @@ function WHTM:InitializeUI()
     filterBtn:SetScript("OnClick", function(selfButton)
         WHTM:ShowFilterMenu(selfButton)
     end)
+    styleTextButton(filterBtn)
     self.filterMenuFrame = CreateFrame("Frame", "WHTM_FilterMenuFrame", UIParent, "UIDropDownMenuTemplate")
 
     local clearBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -554,6 +583,7 @@ function WHTM:InitializeUI()
     clearBtn:SetScript("OnClick", function()
         WHTM:ClearEvents()
     end)
+    styleTextButton(clearBtn)
 
     local pauseBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     pauseBtn:SetWidth(84)
@@ -562,10 +592,33 @@ function WHTM:InitializeUI()
     pauseBtn:SetScript("OnClick", function()
         WHTM:SetCapturePaused(not WHTM.db.profile.paused)
     end)
+    styleTextButton(pauseBtn)
     frame.pauseButton = pauseBtn
 
+    local controlsBar = CreateFrame("Frame", nil, frame)
+    controlsBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -38)
+    controlsBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -38)
+    controlsBar:SetHeight(28)
+    controlsBar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        tile = true,
+        tileSize = 8,
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    controlsBar:SetBackdropColor(goalsTone.controlBg[1], goalsTone.controlBg[2], goalsTone.controlBg[3], goalsTone.controlBg[4])
+    controlsBar:SetBackdropBorderColor(goalsTone.controlBorder[1], goalsTone.controlBorder[2], goalsTone.controlBorder[3], goalsTone.controlBorder[4])
+    controlsBar:SetFrameLevel(frame:GetFrameLevel())
+
+    local controlsFrameLevel = frame:GetFrameLevel() + 2
+    modeBtn:SetFrameLevel(controlsFrameLevel)
+    filterBtn:SetFrameLevel(controlsFrameLevel)
+    clearBtn:SetFrameLevel(controlsFrameLevel)
+    pauseBtn:SetFrameLevel(controlsFrameLevel)
+
     local channelDrop = CreateFrame("Frame", "WHTM_ChannelDropDown", frame, "UIDropDownMenuTemplate")
-    channelDrop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -170, -42)
+    channelDrop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -104, -42)
     UIDropDownMenu_SetWidth(channelDrop, 82)
     UIDropDownMenu_Initialize(channelDrop, function(_, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -583,31 +636,45 @@ function WHTM:InitializeUI()
     end)
     UIDropDownMenu_SetSelectedValue(channelDrop, self.db.profile.shareChannel)
     frame.channelDrop = channelDrop
+    channelDrop:SetFrameLevel(controlsFrameLevel)
 
     local whisperEdit = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
     whisperEdit:SetWidth(78)
     whisperEdit:SetHeight(20)
     whisperEdit:SetAutoFocus(false)
-    whisperEdit:SetPoint("LEFT", channelDrop, "RIGHT", -14, 0)
+    whisperEdit:SetPoint("LEFT", channelDrop, "RIGHT", -12, 0)
     whisperEdit:SetTextInsets(6, 6, 0, 0)
     whisperEdit:SetScript("OnTextChanged", function(selfBox)
         WHTM.db.profile.whisperTarget = selfBox:GetText() or ""
     end)
     frame.whisperEdit = whisperEdit
+    whisperEdit:SetFrameLevel(controlsFrameLevel)
 
     local shareBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     shareBtn:SetWidth(72)
     shareBtn:SetHeight(22)
-    shareBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -34, -42)
+    shareBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -42)
     shareBtn:SetText("Share")
     shareBtn:SetScript("OnClick", function()
         WHTM:ShareEvent(WHTM.selectedEvent, WHTM.db.profile.shareChannel, WHTM.db.profile.whisperTarget)
     end)
+    styleTextButton(shareBtn)
     frame.shareButton = shareBtn
+    shareBtn:SetFrameLevel(controlsFrameLevel)
 
     local content = CreateFrame("Frame", nil, frame)
     content:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -68)
     content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -32, 12)
+    content:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        tile = true,
+        tileSize = 8,
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    content:SetBackdropColor(0.05, 0.06, 0.09, 0.65)
+    content:SetBackdropBorderColor(0.19, 0.21, 0.26, 0.75)
     frame.content = content
     frame.visibleRows = DEFAULT_VISIBLE_ROWS
 
@@ -619,8 +686,14 @@ function WHTM:InitializeUI()
 
     local headerBg = header:CreateTexture(nil, "BACKGROUND")
     headerBg:SetTexture("Interface\\Buttons\\WHITE8x8")
-    headerBg:SetVertexColor(0.26, 0.2, 0.06, 0.5)
+    headerBg:SetVertexColor(0.02, 0.02, 0.02, 0.58)
     headerBg:SetAllPoints(header)
+    local headerLine = header:CreateTexture(nil, "BORDER")
+    headerLine:SetTexture("Interface\\Buttons\\WHITE8x8")
+    headerLine:SetVertexColor(1, 1, 1, 0.08)
+    headerLine:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -1)
+    headerLine:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", 0, -1)
+    headerLine:SetHeight(1)
 
     local cols = TABLE_COLUMN_LABELS
     frame.columnKeys = TABLE_COLUMN_KEYS
@@ -632,6 +705,7 @@ function WHTM:InitializeUI()
         fs:SetPoint("TOPLEFT", header, "TOPLEFT", x, -2)
         fs:SetWidth(self:GetTableColumnWidth(frame.columnKeys[i]))
         fs:SetJustifyH("LEFT")
+        fs:SetTextColor(goalsTone.gold[1], goalsTone.gold[2], goalsTone.gold[3], goalsTone.gold[4])
         fs:SetText(text)
         header.cols[i] = fs
 
@@ -668,8 +742,8 @@ function WHTM:InitializeUI()
         edgeSize = 14,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    details:SetBackdropColor(0.04, 0.04, 0.04, 0.96)
-    details:SetBackdropBorderColor(1.0, 0.82, 0.0, 0.6)
+    details:SetBackdropColor(goalsTone.insetBg[1], goalsTone.insetBg[2], goalsTone.insetBg[3], goalsTone.insetBg[4])
+    details:SetBackdropBorderColor(goalsTone.insetBorder[1], goalsTone.insetBorder[2], goalsTone.insetBorder[3], goalsTone.insetBorder[4])
     frame.detailsPanel = details
     frame.detailsMinHeight = 80
     frame.detailsMaxHeight = 180
@@ -680,6 +754,7 @@ function WHTM:InitializeUI()
     detailsTitle:SetPoint("TOPRIGHT", details, "TOPRIGHT", -10, -8)
     detailsTitle:SetJustifyH("LEFT")
     detailsTitle:SetText("Selected Event")
+    detailsTitle:SetTextColor(goalsTone.gold[1], goalsTone.gold[2], goalsTone.gold[3], goalsTone.gold[4])
     details.title = detailsTitle
 
     local detailsBody = details:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -688,6 +763,7 @@ function WHTM:InitializeUI()
     detailsBody:SetJustifyH("LEFT")
     detailsBody:SetJustifyV("TOP")
     detailsBody:SetNonSpaceWrap(true)
+    detailsBody:SetTextColor(0.95, 0.95, 0.95, 1)
     detailsBody:SetText("Click any row to view details.")
     details.body = detailsBody
 
@@ -704,12 +780,18 @@ function WHTM:InitializeUI()
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetTexture("Interface\\Buttons\\WHITE8x8")
         row.bg:SetAllPoints(row)
-        row.bg:SetVertexColor(0.08, 0.08, 0.08, (i % 2 == 0) and 0.25 or 0.18)
+        row.bg:SetVertexColor(1, 1, 1, (i % 2 == 0) and 0.06 or 0.03)
+
+        row.hover = row:CreateTexture(nil, "HIGHLIGHT")
+        row.hover:SetTexture("Interface\\Buttons\\WHITE8x8")
+        row.hover:SetAllPoints(row)
+        row.hover:SetVertexColor(goalsTone.rowHover[1], goalsTone.rowHover[2], goalsTone.rowHover[3], goalsTone.rowHover[4])
+        row.hover:Hide()
 
         row.selected = row:CreateTexture(nil, "ARTWORK")
         row.selected:SetTexture("Interface\\Buttons\\WHITE8x8")
         row.selected:SetAllPoints(row)
-        row.selected:SetVertexColor(1.0, 0.82, 0.0, 0.18)
+        row.selected:SetVertexColor(goalsTone.rowSelect[1], goalsTone.rowSelect[2], goalsTone.rowSelect[3], goalsTone.rowSelect[4])
         row.selected:Hide()
 
         row.chatText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -733,12 +815,14 @@ function WHTM:InitializeUI()
             WHTM:RefreshRows()
         end)
         row:SetScript("OnEnter", function(selfRow)
+            selfRow.hover:Show()
             if not selfRow.event then
                 return
             end
             WHTM:ShowEventTooltip(selfRow)
         end)
-        row:SetScript("OnLeave", function()
+        row:SetScript("OnLeave", function(selfRow)
+            selfRow.hover:Hide()
             GameTooltip:Hide()
         end)
 
@@ -891,6 +975,7 @@ function WHTM:ShowFilterMenu(anchor)
     addFilter("incoming")
     addFilter("outgoing")
     addFilter("internal")
+    addFilter("boss_only")
     addFilter("damage")
     addFilter("heal")
     addFilter("aura")
@@ -931,14 +1016,15 @@ function WHTM:RefreshProfilerLine()
 
     local rows = #self:GetEvents()
     local cap = tonumber(self.db.profile.maxRows) or 0
-    local text = ("EPS %d (%.1f)  UI/s %d (%.1f)  ms %.2f  Rows %d/%d  Peak %d"):format(
+    local capText = self.db.profile.retainFullHistory and "inf" or tostring(cap)
+    local text = ("EPS %d (%.1f)  UI/s %d (%.1f)  ms %.2f  Rows %d/%s  Peak %d"):format(
         p.epsNow or 0,
         p.eps5 or 0,
         p.uiNow or 0,
         p.ui5 or 0,
         p.renderAvgMs or 0,
         rows,
-        cap,
+        capText,
         p.burstPeak or 0
     )
 
@@ -1106,6 +1192,7 @@ function WHTM:BuildVisibleEvents()
         local event = all[i]
         if self:IsGroupEnabled(event.eventGroup)
             and self:IsDirectionEnabled(event.direction)
+            and ((not self.db.profile.filters.boss_only) or self:IsBossEncounterEvent(event))
             and (event.eventGroup ~= "aura" or self:IsAuraStateEnabled(event.auraState)) then
             out[#out + 1] = event
         end

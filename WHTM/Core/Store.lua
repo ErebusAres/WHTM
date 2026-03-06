@@ -131,6 +131,9 @@ function WHTM:QueueUIRefresh()
 end
 
 function WHTM:TrimEventsToCap()
+    if self.db and self.db.profile and self.db.profile.retainFullHistory then
+        return
+    end
     local cap = tonumber(self.db.profile.maxRows) or 600
     while #self.events > cap do
         table.remove(self.events, 1)

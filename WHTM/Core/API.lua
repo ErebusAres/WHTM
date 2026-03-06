@@ -112,6 +112,8 @@ function WHTM:InitializeAPI()
             paused = p.paused and true or false,
             captureScope = p.captureScope,
             maxRows = p.maxRows,
+            retainFullHistory = p.retainFullHistory and true or false,
+            minimapHide = p.minimap and p.minimap.hide and true or false,
             timestampFormat = p.timestampFormat,
             filters = shallowCopy(p.filters or {}),
             shareChannel = p.shareChannel,
@@ -129,12 +131,13 @@ function WHTM:InitializeAPI()
         end
 
         local needsRefresh = false
+        local deferUI = WHTM.ShouldDeferUIRefreshFromAPI and WHTM:ShouldDeferUIRefreshFromAPI() or false
 
         if patch.mode == "chat" or patch.mode == "table" then
-            WHTM:SetDisplayMode(patch.mode)
+            WHTM:SetDisplayMode(patch.mode, deferUI)
         end
         if patch.paused ~= nil then
-            WHTM:SetCapturePaused(patch.paused and true or false)
+            WHTM:SetCapturePaused(patch.paused and true or false, deferUI)
         end
         if patch.captureScope == "player" or patch.captureScope == "party" or patch.captureScope == "raid" then
             p.captureScope = patch.captureScope
@@ -152,6 +155,13 @@ function WHTM:InitializeAPI()
             end
             p.maxRows = maxRows
             if WHTM.TrimEventsToCap then
+                WHTM:TrimEventsToCap()
+            end
+            needsRefresh = true
+        end
+        if patch.retainFullHistory ~= nil then
+            p.retainFullHistory = patch.retainFullHistory and true or false
+            if not p.retainFullHistory and WHTM.TrimEventsToCap then
                 WHTM:TrimEventsToCap()
             end
             needsRefresh = true
@@ -177,9 +187,22 @@ function WHTM:InitializeAPI()
             p.whisperTarget = tostring(patch.whisperTarget or "")
             needsRefresh = true
         end
+        if patch.minimapHide ~= nil then
+            p.minimap = p.minimap or {}
+            local nextHide = patch.minimapHide and true or false
+            local changed = (p.minimap.hide and true or false) ~= nextHide
+            p.minimap.hide = nextHide
+            if changed and WHTM.RefreshMinimapIcon then
+                WHTM:RefreshMinimapIcon()
+            end
+        end
 
         if needsRefresh and WHTM.RefreshRows then
-            WHTM:RefreshRows()
+            if deferUI then
+                WHTM.pendingRefreshWhileHidden = true
+            else
+                WHTM:RefreshRows()
+            end
         end
         WHTM:NotifyAPIListeners("settings_updated", WHTM_API.GetSettings())
         return true
