@@ -60,6 +60,8 @@ function WHTM:ShareEvent(event, channel, whisperTarget)
     end
 
     local text = self:BuildShareLine(event)
+    -- WoW chat parser treats "|" as an escape prefix; literal pipes must be doubled.
+    text = tostring(text or ""):gsub("|", "||")
     channel = channel or self.db.profile.shareChannel or "PARTY"
 
     if channel == "WHISPER" then
