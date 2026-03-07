@@ -35,6 +35,35 @@ local trackedSubevents = {
     SPELL_AURA_BROKEN_SPELL = true,
 }
 
+local LIFE_TAP_SPELL_IDS = {
+    [1454] = true, [1455] = true, [1456] = true, [11687] = true,
+    [11688] = true, [11689] = true, [27222] = true, [57946] = true,
+}
+local DEBUG_LIFETAP = false
+
+local function lifeTapDebug(msg)
+    if not DEBUG_LIFETAP then
+        return
+    end
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff66b3ffWHTM LifeTap:|r " .. tostring(msg))
+    end
+end
+
+local function isLifeTapSpell(spellId, spellName)
+    local sid = tonumber(spellId)
+    if sid and LIFE_TAP_SPELL_IDS[sid] then
+        return true
+    end
+    if spellName and spellName ~= "" then
+        local lower = string.lower(tostring(spellName))
+        if string.find(lower, "life tap", 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 local function sanitizeName(name)
     if not name or name == "" then
         return "Unknown"
@@ -211,6 +240,84 @@ local function normalizeNumber(num)
     return num
 end
 
+local function isLifeTapRecord(record)
+    return record and isLifeTapSpell(record.spellId, record.spellName) or false
+end
+
+local function cacheRecentSelfDamage(self, record)
+    if not record or record.eventGroup ~= "damage" then
+        return
+    end
+    if not record.sourceGUID or not record.destGUID or record.sourceGUID ~= record.destGUID then
+        return
+    end
+
+    local spellKey = tonumber(record.spellId) or (record.spellName and string.lower(record.spellName)) or nil
+    if not spellKey then
+        return
+    end
+
+    local amount = tonumber(record.effectiveAmount or record.amount) or 0
+    if amount <= 0 then
+        return
+    end
+
+    self.recentSelfDamage = self.recentSelfDamage or {}
+    self.recentSelfDamage[spellKey] = {
+        amount = amount,
+        guid = record.sourceGUID,
+        ts = tonumber(record.combatTimestamp) or tonumber(record.timestamp) or 0,
+    }
+end
+
+local function consumeRecentSelfDamage(self, record)
+    if not record or record.eventGroup ~= "resource" then
+        return nil
+    end
+    if not record.sourceGUID or not record.destGUID or record.sourceGUID ~= record.destGUID then
+        return nil
+    end
+    if not self.recentSelfDamage then
+        return nil
+    end
+
+    local spellKey = tonumber(record.spellId) or (record.spellName and string.lower(record.spellName)) or nil
+    if not spellKey then
+        return nil
+    end
+
+    local recent = self.recentSelfDamage[spellKey]
+    if not recent then
+        return nil
+    end
+
+    local nowTs = tonumber(record.combatTimestamp) or tonumber(record.timestamp) or 0
+    if recent.guid ~= record.sourceGUID or (nowTs - (recent.ts or 0)) > 2 then
+        self.recentSelfDamage[spellKey] = nil
+        return nil
+    end
+
+    self.recentSelfDamage[spellKey] = nil
+    return tonumber(recent.amount) or nil
+end
+
+local function consumeRecentLifeTapHealthLoss(self, record)
+    if not record or not isLifeTapRecord(record) then
+        return nil
+    end
+    local recent = self.recentLifeTapHealthLoss
+    if not recent then
+        return nil
+    end
+    local nowTs = tonumber(record.timestamp) or 0
+    if recent.ts and nowTs > 0 and (nowTs - recent.ts) > 2 then
+        self.recentLifeTapHealthLoss = nil
+        return nil
+    end
+    self.recentLifeTapHealthLoss = nil
+    return tonumber(recent.amount) or nil
+end
+
 local function applyDerivedAmounts(record)
     if not record.amount then
         return
@@ -276,8 +383,113 @@ function WHTM:InitializeCombatCapture()
     self:RegisterEvent("PLAYER_FOCUS_CHANGED", "OnUnitContextUpdated")
     self:RegisterEvent("UPDATE_MOUSEOVER_UNIT", "OnUnitContextUpdated")
     self:RegisterEvent("RAID_TARGET_UPDATE", "OnUnitContextUpdated")
+    self:RegisterEvent("UNIT_SPELLCAST_SENT", "OnUnitSpellcastSent")
+    self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", "OnUnitSpellcastSucceeded")
 
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCombatLogEvent")
+end
+
+local function extractSpellFromVarargs(...)
+    local spellName, spellId
+    local numericFallback
+    for i = 1, select("#", ...) do
+        local v = select(i, ...)
+        if type(v) == "number" then
+            if LIFE_TAP_SPELL_IDS[v] then
+                spellId = v
+            elseif v > 100 and not numericFallback then
+                numericFallback = v
+            end
+        elseif type(v) == "string" and v ~= "" and not spellName then
+            if not string.find(v, "^Cast%-") then
+                spellName = v
+            end
+        end
+    end
+    if not spellId then
+        spellId = numericFallback
+    end
+    return spellName, spellId
+end
+
+function WHTM:OnUnitSpellcastSent(_, unit, ...)
+    if unit ~= "player" then
+        return
+    end
+    local spellName, spellId = extractSpellFromVarargs(...)
+    if not isLifeTapSpell(spellId, spellName) then
+        return
+    end
+    lifeTapDebug(("SENT spell=%s id=%s hp=%s"):format(tostring(spellName), tostring(spellId), tostring(UnitHealth("player") or "?")))
+    self.pendingLifeTapCast = {
+        hpBefore = tonumber(UnitHealth("player")) or 0,
+        ts = time(),
+    }
+end
+
+function WHTM:OnUnitSpellcastSucceeded(_, unit, ...)
+    if unit ~= "player" then
+        return
+    end
+    local spellName, spellId = extractSpellFromVarargs(...)
+    if not isLifeTapSpell(spellId, spellName) then
+        return
+    end
+    local nowHp = tonumber(UnitHealth("player")) or 0
+    local pending = self.pendingLifeTapCast
+    if not pending or not pending.hpBefore then
+        lifeTapDebug(("SUCCEEDED spell=%s id=%s hp=%s pending=nil"):format(tostring(spellName), tostring(spellId), tostring(nowHp)))
+        return
+    end
+    local lost = tonumber(pending.hpBefore) - nowHp
+    lifeTapDebug(("SUCCEEDED spell=%s id=%s hpBefore=%s hpAfter=%s lost=%s"):format(
+        tostring(spellName), tostring(spellId), tostring(pending.hpBefore), tostring(nowHp), tostring(lost)))
+    if lost and lost > 0 then
+        self.recentLifeTapHealthLoss = {
+            amount = lost,
+            ts = time(),
+        }
+        self.pendingLifeTapCast = nil
+    else
+        -- HP can update slightly after SUCCEEDED on some cores; retry shortly.
+        self.pendingLifeTapCast = pending
+        self:ScheduleTimer(function()
+            if not pending or not pending.hpBefore then
+                return
+            end
+            local delayedHp = tonumber(UnitHealth("player")) or 0
+            local delayedLost = tonumber(pending.hpBefore) - delayedHp
+            lifeTapDebug(("DELAYED hpBefore=%s hpAfter=%s lost=%s"):format(
+                tostring(pending.hpBefore), tostring(delayedHp), tostring(delayedLost)))
+            if delayedLost and delayedLost > 0 then
+                self.recentLifeTapHealthLoss = {
+                    amount = delayedLost,
+                    ts = time(),
+                }
+                if self.pendingLifeTapCast == pending then
+                    self.pendingLifeTapCast = nil
+                end
+            end
+        end, 0.08)
+    end
+end
+
+local function consumePendingLifeTapHealthLoss(self)
+    local pending = self.pendingLifeTapCast
+    if not pending or not pending.hpBefore then
+        return nil
+    end
+    if pending.ts and (time() - pending.ts) > 3 then
+        self.pendingLifeTapCast = nil
+        return nil
+    end
+    local hpNow = tonumber(UnitHealth("player")) or 0
+    local lost = tonumber(pending.hpBefore) - hpNow
+    if lost and lost > 0 then
+        self.pendingLifeTapCast = nil
+        return lost
+    end
+    return nil
 end
 
 function WHTM:OnUnitContextUpdated()
@@ -518,5 +730,50 @@ function WHTM:OnCombatLogEvent(_, ...)
     end
 
     applyDerivedAmounts(record)
+    cacheRecentSelfDamage(self, record)
+    local deferLifeTapResource = false
+    if record.eventGroup == "resource" then
+        local healthLost = consumeRecentSelfDamage(self, record)
+        if healthLost and healthLost > 0 then
+            record.healthLost = healthLost
+        elseif isLifeTapRecord(record) then
+            local fallback = consumeRecentLifeTapHealthLoss(self, record)
+                or consumePendingLifeTapHealthLoss(self)
+                or tonumber(record.extraAmount)
+                or 0
+            if fallback > 0 then
+                record.healthLost = fallback
+            elseif self.pendingLifeTapCast and self.pendingLifeTapCast.hpBefore then
+                -- Some cores report the HP delta a moment after the resource event.
+                -- Defer this single record briefly so consumers receive both values together.
+                local pending = self.pendingLifeTapCast
+                deferLifeTapResource = true
+                self:ScheduleTimer(function()
+                    local delayedHp = tonumber(UnitHealth("player")) or 0
+                    local delayedLost = tonumber(pending.hpBefore) - delayedHp
+                    if delayedLost and delayedLost > 0 then
+                        record.healthLost = delayedLost
+                        self.recentLifeTapHealthLoss = {
+                            amount = delayedLost,
+                            ts = time(),
+                        }
+                        if self.pendingLifeTapCast == pending then
+                            self.pendingLifeTapCast = nil
+                        end
+                    end
+                    lifeTapDebug(("RESOURCE-DELAYED spell=%s id=%s amount=%s effective=%s healthLost=%s"):format(
+                        tostring(record.spellName), tostring(record.spellId), tostring(record.amount),
+                        tostring(record.effectiveAmount), tostring(record.healthLost)))
+                    self:AddEvent(record)
+                end, 0.10)
+            end
+            lifeTapDebug(("RESOURCE spell=%s id=%s amount=%s effective=%s extra=%s healthLost=%s"):format(
+                tostring(record.spellName), tostring(record.spellId), tostring(record.amount),
+                tostring(record.effectiveAmount), tostring(record.extraAmount), tostring(record.healthLost)))
+        end
+    end
+    if deferLifeTapResource then
+        return
+    end
     self:AddEvent(record)
 end
